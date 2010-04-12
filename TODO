@@ -1,0 +1,4 @@
+1. DB2 support (easy)
+2. Some parts of the message can(should?) be templatized:
+   - date (easy)
+   - timestamp (hard)
