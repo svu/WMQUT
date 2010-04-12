@@ -18,6 +18,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
+#
 # Description: Run WMQMB unit tests
 #
 # Parameters: subset of tests. If empty, all tests are being run
@@ -51,12 +52,17 @@
 #   WMQUT_TEST_TIMEOUT (optional) - the time to wait after sending the message
 #   WMQUT_TRACE_LEVEL (optional) - the trace level
 #
+# Directory structure:
+#   ActualResults
+#   Data
+#   ExpectedResults
+#   UserTrace
+#
 # Dependencies:
 #   mqput2, mqcapone should be in PATH
 #   sqlplus should be in PATH, if Oracle is used
 #   xmllint should be in PATH, if XML messages are processed
 #
-
 
 # set -x
 
@@ -271,7 +277,6 @@ function setupDb
   logMsg "Setting up DB"
   testNo=$1
   runOracle "${sqlBeforeTest_oracle[$testNo]}" "${sqlFileBeforeTest_oracle[$testNo]}"
-  # TODO: db2 support
 }
 
 #
