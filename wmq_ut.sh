@@ -68,6 +68,7 @@
 
 testConfig=${WMQUT_CONFIG:-./wmq_ut.conf}
 logFile=${WMQUT_LOG:-./wmq_ut.log}
+NO_FORMAT="%02d"
 
 function logMsg
 {
@@ -155,17 +156,12 @@ function checkEnvironment
 function findTestsToRun
 {
   for ((t=1; t <= ${#testDescription[@]} ; t++)) ; do
-    allTests="$allTests `printf "%02d" $t`"
+    allTests="$allTests $t"
   done
   testsToRun="$*"
   # Nothing specified - run all tests
   if [ -z "$testsToRun" ] ; then
     testsToRun="$allTests"
-  else
-    for t in $testsToRun ; do
-      ttr="$ttr `printf "%02d" $t`"
-    done
-    testsToRun="$ttr"
   fi
   logMsg Tests to run: $testsToRun
 }
@@ -234,9 +230,8 @@ function enableTrace
 #
 function saveTrace
 {
-  testNo=$1
-  xml=UserTrace/TD$testNo.xml
-  log=UserTrace/TD$testNo.log
+  xml=UserTrace/UT$formattedTestNo.xml
+  log=UserTrace/UT$formattedTestNo.log
 
   runMqsi mqsichangetrace $broker -u -e $executionGroup -l none
   runMqsi mqsireadlog     $broker -u -e $executionGroup -f -o $xml
@@ -275,7 +270,6 @@ function runOracle()
 function setupDb
 {
   logMsg "Setting up DB"
-  testNo=$1
   runOracle "${sqlBeforeTest_oracle[$testNo]}" "${sqlFileBeforeTest_oracle[$testNo]}"
 }
 
@@ -286,7 +280,6 @@ function setupDb
 function cleanupDb
 {
   logMsg "Cleaning up DB"
-  testNo=$1
   runOracle "${sqlAfterTest_oracle[$testNo]}" "${sqlFileAfterTest_oracle[$testNo]}"
 }
 
@@ -296,7 +289,6 @@ function cleanupDb
 #
 function setupTest
 {
-  testNo=$1
   # Cleanup
   if [ -n "$cleanupQueues" ] ; then
     logMsg -n Cleaning the queues:
@@ -307,7 +299,7 @@ function setupTest
     logMsg
   fi
 
-  setupDb $testNo
+  setupDb
   enableTrace
 }
 
@@ -317,10 +309,9 @@ function setupTest
 #
 function executeTest
 {
-  testNo=$1
   pf=mqput2.parm
 
-  if [ ! -f Data/TD$testNo.msg ] ; then
+  if [ ! -f Data/TD$formattedTestNo.msg ] ; then
     logMsg Missing test data for the test $t
     exit 2
   fi
@@ -336,7 +327,7 @@ qmgr=$queueManager
 msgcount=1
 rfh=A
 [filelist]
-Data/TD$testNo.msg
+Data/TD$formattedTestNo.msg
 EOF
   mqput2 -f $pf >> $logFile
   rm -f $pf
@@ -351,9 +342,8 @@ EOF
 #
 function compareResults
 {
-  resultNo=$1
-  ar=ActualResults/AR$resultNo.msg
-  er=ExpectedResults/ER$resultNo.msg
+  ar=ActualResults/AR$formattedResultNo.msg
+  er=ExpectedResults/ER$formattedResultNo.msg
   if [ "XML" = "${testDataFormat[$testNo]}" ] ; then
     xmllint --format $ar > $ar.xml
     xmllint --format $er > $er.xml
@@ -363,13 +353,22 @@ function compareResults
   fi
 }
 
+#
+# Reset the result counter
+#
+function resetResultNo
+{
+  resultNo=1
+  formattedResultNo=01
+}
 
 #
 # Increment global result number
 #
 function incResultNo
 {
-  resultNo=`printf "%02d" $(( resultNo + 1 ))`
+  resultNo=$(( resultNo + 1 ))
+  formattedResultNo=`printf $NO_FORMAT $resultNo`
 }
 
 #
@@ -378,15 +377,14 @@ function incResultNo
 #
 function analizeTest
 {
-  testNo=$1
-  saveTrace $testNo
+  saveTrace
 
   for q in ${testOutputQueues[$testNo]} ; do
     if ! getWMQMessage $q ; then
       logMsg Expected a message from $q, no message available
     else
-      mv tmp.msg ActualResults/AR$resultNo.msg
-      compareResults $resultNo
+      mv tmp.msg ActualResults/AR$formattedResultNo.msg
+      compareResults $formattedResultNo
       incResultNo
     fi
   done
@@ -404,8 +402,7 @@ function analizeTest
 #
 function cleanupTest
 {
-  testNo=$1
-  cleanupDb $testNo
+  cleanupDb
 }
 
 #
@@ -413,12 +410,13 @@ function cleanupTest
 #
 function mainLoop
 {
-  resultNo=01
+  resetResultNo
+
   for testNo in $allTests; do
     # Check if the current test has to be run
     doRun=0
     for t in $testsToRun; do
-      if [ $t = $testNo ] ; then
+      if [ "$t" = "$testNo" ] ; then
         doRun=1
         break
       fi
@@ -428,10 +426,11 @@ function mainLoop
     # otherwise just increase result counter
     if [ 1 = $doRun ] ; then
       logMsg ----- Test $testNo: ${testDescription[$testNo]} -----
-      setupTest $testNo
-      executeTest $testNo
-      analizeTest $testNo
-      cleanupTest $testNo
+      formattedTestNo="`printf $NO_FORMAT $testNo`"
+      setupTest
+      executeTest
+      analizeTest
+      cleanupTest
     else
       for q in ${testOutputQueues[$testNo]} ; do
         incResultNo
