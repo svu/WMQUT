@@ -41,6 +41,15 @@
 #     testDescription[i] (mandatory) - the description of the test
 #     testInputQueue[i] (mandatory) - the input queue 
 #                                     (if different from the global)
+#     testOutputQueues[i] (optional) - the list of output queues. One queue 
+#                                      can be listed several times if several
+#                                      messages are expected
+#     testEmptyQueues[i] (optional) - the list of empty queues.
+#     testOutputFormat[i] (optional) - the list of formats (for comparison).
+#                                      Supported values:
+#                                      'plain' - non-structured
+#                                      'XML' - simple XML, no headers
+#                                      'XML+XML' - XML in MQRFH2.usr (all in one line), XML in body
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
@@ -336,6 +345,16 @@ EOF
   sleep $testTimeout
 }
 
+function compareUSRAsXML
+{
+  # Check XML in usr folder (RFH2) - assuming it is all in 1st line
+  head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $ar.usr
+  head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $er.usr
+  xmllint --format $ar.usr > $ar.usr.xml
+  xmllint --format $er.usr > $er.usr.xml
+  diff -u $er.usr.xml $ar.usr.xml
+}
+
 #
 # Compare the actual results with expected
 # Parameters: $1 - result number
@@ -344,10 +363,30 @@ function compareResults
 {
   ar=ActualResults/AR$formattedResultNo.msg
   er=ExpectedResults/ER$formattedResultNo.msg
-  if [ "XML" = "${testDataFormat[$testNo]}" ] ; then
+  outputFormat=`echo ${testOutputFormat[$testNo]} | cut -d " " -f $localResultNo`
+
+  if [ "XML" = "$outputFormat" ] ; then
     xmllint --format $ar > $ar.xml
     xmllint --format $er > $er.xml
     diff -u $er.xml $ar.xml
+  elif [ "XML+XML" = "$outputFormat" ] ; then
+    compareUSRAsXML
+
+    head -1 $ar | awk '{ split($0, a, "<\\?xml"); printf "<?xml"; print a[2]; }' > $ar.data
+    head -1 $er | awk '{ split($0, a, "<\\?xml"); printf "<?xml"; print a[2]; }' > $er.data
+    tail --lines=+2 $ar >> $ar.data
+    tail --lines=+2 $er >> $er.data
+    xmllint --format $ar.data > $ar.data.xml
+    xmllint --format $er.data > $er.data.xml
+    diff -u $er.data.xml $ar.data.xml
+  elif [ "XML+plain" = "$outputFormat" ] ; then
+    compareUSRAsXML
+
+    head -1 $ar | awk '{ split($0, a, "<\/usr>"); print a[2]; }' > $ar.data
+    head -1 $er | awk '{ split($0, a, "<\/usr>"); print a[2]; }' > $er.data
+    tail --lines=+2 $ar >> $ar.data
+    tail --lines=+2 $er >> $er.data
+    diff -u $er.data $ar.data
   else
     diff -u $er $ar
   fi
@@ -367,7 +406,7 @@ function resetResultNo
 #
 function incResultNo
 {
-  resultNo=$(( resultNo + 1 ))
+  resultNo=$(( $resultNo + 1 ))
   formattedResultNo=`printf $NO_FORMAT $resultNo`
 }
 
@@ -379,6 +418,7 @@ function analizeTest
 {
   saveTrace
 
+  localResultNo=1
   for q in ${testOutputQueues[$testNo]} ; do
     if ! getWMQMessage $q ; then
       logMsg Expected a message from $q, no message available
@@ -387,6 +427,7 @@ function analizeTest
       compareResults $formattedResultNo
       incResultNo
     fi
+    localResultNo=$(( $localResultNo + 1 ))
   done
 
   for q in ${testEmptyQueues[$testNo]} ; do

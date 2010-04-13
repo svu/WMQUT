@@ -1,7 +1,3 @@
-1. DB2 support (easy)
-2. Some parts of the message can(should?) be templatized:
-   - date (easy)
-   - timestamp (hard)
-3. Different result types (easy)
-4. EBCDIC
-5. Tolerate bad XML (+RFH) in results
+1. DB2 support
+2. Some parts of the message can(should?) be templatized
+3. EBCDIC
