@@ -36,6 +36,7 @@
 #     testTimeout (optional) - the time to wait after sending the message, default 10
 #     brokerTraceLevel (optional) - the trace level, default 'normal'
 #     oracleDb (optional) - the Oracle connection, user/password@db
+#     ignoreXmlElements (optional) - the XML elements to ignore (date/time/machine id/...)
 #
 #   Per-test:
 #     testDescription[i] (mandatory) - the description of the test
@@ -345,14 +346,34 @@ EOF
   sleep $testTimeout
 }
 
+#
+# Process XML file
+# Drop all lines related to $ignoreXmlElements
+# Parameters: $1 - the xml file name
+#
+function processXml
+{
+  xml=$1
+  processedXml=$xml.xml
+  xmllint --format $xml > $processedXml
+  for e in $ignoreXmlElements ; do
+    mv $processedXml $xml
+    grep -v "<$e>" $xml > $processedXml
+  done
+}
+
+#
+# Compare USR folders ($ar and $er)
+# Assumption: the entire usr folder is within 1st line of the message
+#
 function compareUSRAsXML
 {
   # Check XML in usr folder (RFH2) - assuming it is all in 1st line
   head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $ar.usr
   head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $er.usr
-  xmllint --format $ar.usr > $ar.usr.xml
-  xmllint --format $er.usr > $er.usr.xml
-  diff -u $er.usr.xml $ar.usr.xml
+  processXml $ar.usr
+  processXml $er.usr
+  diff -u $er.usr.xml $ar.usr.xml | tee -a $logFile
 }
 
 #
@@ -366,9 +387,9 @@ function compareResults
   outputFormat=`echo ${testOutputFormat[$testNo]} | cut -d " " -f $localResultNo`
 
   if [ "XML" = "$outputFormat" ] ; then
-    xmllint --format $ar > $ar.xml
-    xmllint --format $er > $er.xml
-    diff -u $er.xml $ar.xml
+    processXml $ar
+    processXml $er
+    diff -u $er.xml $ar.xml | tee -a $logFile
   elif [ "XML+XML" = "$outputFormat" ] ; then
     compareUSRAsXML
 
@@ -376,19 +397,19 @@ function compareResults
     head -1 $er | awk '{ split($0, a, "<\\?xml"); printf "<?xml"; print a[2]; }' > $er.data
     tail --lines=+2 $ar >> $ar.data
     tail --lines=+2 $er >> $er.data
-    xmllint --format $ar.data > $ar.data.xml
-    xmllint --format $er.data > $er.data.xml
-    diff -u $er.data.xml $ar.data.xml
+    processXml $ar.data
+    processXml $er.data
+    diff -u $er.data.xml $ar.data.xml | tee -a $logFile
   elif [ "XML+plain" = "$outputFormat" ] ; then
     compareUSRAsXML
 
-    head -1 $ar | awk '{ split($0, a, "<\/usr>"); print a[2]; }' > $ar.data
-    head -1 $er | awk '{ split($0, a, "<\/usr>"); print a[2]; }' > $er.data
+    head -1 $ar | awk '{ split($0, a, "<\\/usr>"); print a[2]; }' > $ar.data
+    head -1 $er | awk '{ split($0, a, "<\\/usr>"); print a[2]; }' > $er.data
     tail --lines=+2 $ar >> $ar.data
     tail --lines=+2 $er >> $er.data
-    diff -u $er.data $ar.data
+    diff -u $er.data $ar.data | tee -a $logFile
   else
-    diff -u $er $ar
+    diff -a -u $er $ar | tee -a $logFile
   fi
 }
 
@@ -425,8 +446,8 @@ function analizeTest
     else
       mv tmp.msg ActualResults/AR$formattedResultNo.msg
       compareResults $formattedResultNo
-      incResultNo
     fi
+    incResultNo
     localResultNo=$(( $localResultNo + 1 ))
   done
 
