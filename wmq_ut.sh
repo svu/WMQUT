@@ -377,6 +377,18 @@ function compareUSRAsXML
 }
 
 #
+# Extract data after USR folders ($ar and $er)
+# Assumption: the entire usr folder is within 1st line of the message
+#
+function extractDataAfterUSR
+{
+    head -1 $ar | awk '{ split($0, a, "<\\/usr>[[:blank:]]*"); print a[2]; }' > $ar.data
+    head -1 $er | awk '{ split($0, a, "<\\/usr>[[:blank:]]*"); print a[2]; }' > $er.data
+    tail --lines=+2 $ar >> $ar.data
+    tail --lines=+2 $er >> $er.data
+}
+
+#
 # Compare the actual results with expected
 # Parameters: $1 - result number
 #
@@ -392,21 +404,13 @@ function compareResults
     diff -u $er.xml $ar.xml | tee -a $logFile
   elif [ "XML+XML" = "$outputFormat" ] ; then
     compareUSRAsXML
-
-    head -1 $ar | awk '{ split($0, a, "<\\?xml"); printf "<?xml"; print a[2]; }' > $ar.data
-    head -1 $er | awk '{ split($0, a, "<\\?xml"); printf "<?xml"; print a[2]; }' > $er.data
-    tail --lines=+2 $ar >> $ar.data
-    tail --lines=+2 $er >> $er.data
+    extractDataAfterUSR
     processXml $ar.data
     processXml $er.data
     diff -u $er.data.xml $ar.data.xml | tee -a $logFile
   elif [ "XML+plain" = "$outputFormat" ] ; then
     compareUSRAsXML
-
-    head -1 $ar | awk '{ split($0, a, "<\\/usr>"); print a[2]; }' > $ar.data
-    head -1 $er | awk '{ split($0, a, "<\\/usr>"); print a[2]; }' > $er.data
-    tail --lines=+2 $ar >> $ar.data
-    tail --lines=+2 $er >> $er.data
+    extractDataAfterUSR
     diff -u $er.data $ar.data | tee -a $logFile
   else
     diff -a -u $er $ar | tee -a $logFile
@@ -441,6 +445,7 @@ function analizeTest
 
   localResultNo=1
   for q in ${testOutputQueues[$testNo]} ; do
+    logMsg Checking output queue $q
     if ! getWMQMessage $q ; then
       logMsg Expected a message from $q, no message available
     else
@@ -452,6 +457,7 @@ function analizeTest
   done
 
   for q in ${testEmptyQueues[$testNo]} ; do
+    logMsg Checking queue $q to be empty
     if getWMQMessage $q ; then
       logMsg Expected queue $q to be empty - but at least one message is available
     fi
