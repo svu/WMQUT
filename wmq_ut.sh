@@ -48,9 +48,11 @@
 #     testEmptyQueues[i] (optional) - the list of empty queues.
 #     testOutputFormat[i] (optional) - the list of formats (for comparison).
 #                                      Supported values:
-#                                      'plain' - non-structured
-#                                      'XML' - simple XML, no headers
-#                                      'XML+XML' - XML in MQRFH2.usr (all in one line), XML in body
+#                                      'P' - non-structured
+#                                      'X' - simple XML, no headers
+#                                      'XX' - XML in MQRFH2.usr (all in one line), XML in body
+#                                      'XP' - XML in MQRFH2.usr (all in one line), plain body
+#                                      'PX' - plain MQRFH2.usr (all in one line), XML in body
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
@@ -339,6 +341,7 @@ rfh=A
 [filelist]
 Data/TD$formattedTestNo.msg
 EOF
+  logMsg Sending message to $tq ...
   mqput2 -f $pf >> $logFile
   rm -f $pf
 
@@ -363,21 +366,41 @@ function processXml
 }
 
 #
+# Extract USR folder ($ar and $er)
+# Assumption: the entire usr folder is within 1st line of the message
+#
+function extractUSR
+{
+  head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $ar.usr
+  head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $er.usr
+}
+
+#
+# Compare USR folders ($ar and $er)
+# Assumption: the entire usr folder is within 1st line of the message
+#
+function compareUSRAsPlain
+{
+  # Check XML in usr folder (RFH2) - assuming it is all in 1st line
+  extractUSR
+  diff -u $er.usr $ar.usr | tee -a $logFile
+}
+
+#
 # Compare USR folders ($ar and $er)
 # Assumption: the entire usr folder is within 1st line of the message
 #
 function compareUSRAsXML
 {
   # Check XML in usr folder (RFH2) - assuming it is all in 1st line
-  head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $ar.usr
-  head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $er.usr
+  extractUSR
   processXml $ar.usr
   processXml $er.usr
   diff -u $er.usr.xml $ar.usr.xml | tee -a $logFile
 }
 
 #
-# Extract data after USR folders ($ar and $er)
+# Extract data after USR folder ($ar and $er)
 # Assumption: the entire usr folder is within 1st line of the message
 #
 function extractDataAfterUSR
@@ -389,6 +412,16 @@ function extractDataAfterUSR
 }
 
 #
+# Compare Data XML ($ar and $er)
+#
+function compareDataAsXML
+{
+    extractDataAfterUSR
+    processXml $ar.data
+    processXml $er.data
+    diff -u $er.data.xml $ar.data.xml | tee -a $logFile
+}
+#
 # Compare the actual results with expected
 # Parameters: $1 - result number
 #
@@ -398,20 +431,20 @@ function compareResults
   er=ExpectedResults/ER$formattedResultNo.msg
   outputFormat=`echo ${testOutputFormat[$testNo]} | cut -d " " -f $localResultNo`
 
-  if [ "XML" = "$outputFormat" ] ; then
+  if [ "X" = "$outputFormat" ] ; then
     processXml $ar
     processXml $er
     diff -u $er.xml $ar.xml | tee -a $logFile
-  elif [ "XML+XML" = "$outputFormat" ] ; then
+  elif [ "XX" = "$outputFormat" ] ; then
     compareUSRAsXML
-    extractDataAfterUSR
-    processXml $ar.data
-    processXml $er.data
-    diff -u $er.data.xml $ar.data.xml | tee -a $logFile
-  elif [ "XML+plain" = "$outputFormat" ] ; then
+    compareDataAsXML
+  elif [ "XP" = "$outputFormat" ] ; then
     compareUSRAsXML
     extractDataAfterUSR
     diff -u $er.data $ar.data | tee -a $logFile
+  elif [ "PX" = "$outputFormat" ] ; then
+    compareUSRAsPlain
+    compareDataAsXML
   else
     diff -a -u $er $ar | tee -a $logFile
   fi
@@ -460,6 +493,7 @@ function analizeTest
     logMsg Checking queue $q to be empty
     if getWMQMessage $q ; then
       logMsg Expected queue $q to be empty - but at least one message is available
+      mv tmp.msg $q.msg
     fi
   done
 }
