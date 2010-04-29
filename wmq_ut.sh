@@ -53,6 +53,10 @@
 #                                      'XX' - XML in MQRFH2.usr (all in one line), XML in body
 #                                      'XP' - XML in MQRFH2.usr (all in one line), plain body
 #                                      'PX' - plain MQRFH2.usr (all in one line), XML in body
+#     sqlFileBeforeTest_oracle (optional) - the file name of the SQL script
+#     sqlBeforeTest_oracle (optional) - the SQL script (single line)
+#     sqlFileAfterTest_oracle (optional) - the file name of the SQL script
+#     sqlAfterTest_oracle (optional) - the SQL script (single line)
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
@@ -232,7 +236,7 @@ EOF
 #
 function enableTrace
 {
-  runMqsi mqsichangetrace $broker -u -e $executionGroup -l $brokerTraceLevel -r
+  runMqsi mqsichangetrace $broker -u -e $executionGroup -l $brokerTraceLevel -r -c 50000
 }
 
 #
@@ -242,6 +246,7 @@ function enableTrace
 #
 function saveTrace
 {
+  logMsg Saving trace
   xml=UserTrace/UT$formattedTestNo.xml
   log=UserTrace/UT$formattedTestNo.log
 
@@ -403,12 +408,20 @@ function compareUSRAsXML
 # Extract data after USR folder ($ar and $er)
 # Assumption: the entire usr folder is within 1st line of the message
 #
-function extractDataAfterUSR
+function extractDataAfterRFH2
 {
-    head -1 $ar | awk '{ split($0, a, "<\\/usr>[[:blank:]]*"); print a[2]; }' > $ar.data
-    head -1 $er | awk '{ split($0, a, "<\\/usr>[[:blank:]]*"); print a[2]; }' > $er.data
-    tail --lines=+2 $ar >> $ar.data
-    tail --lines=+2 $er >> $er.data
+  tag=usr
+  if grep -q "</mcd>" $ar ; then
+    tag=mcd
+  fi
+  if grep -q "</jms>" $ar ; then
+    tag=jms
+  fi
+  logMsg Last RFH2 MQ element: $tag
+  head -1 $ar | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $ar.data
+  head -1 $er | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $er.data
+  tail --lines=+2 $ar >> $ar.data
+  tail --lines=+2 $er >> $er.data
 }
 
 #
@@ -416,7 +429,7 @@ function extractDataAfterUSR
 #
 function compareDataAsXML
 {
-    extractDataAfterUSR
+    extractDataAfterRFH2
     processXml $ar.data
     processXml $er.data
     diff -u $er.data.xml $ar.data.xml | tee -a $logFile
@@ -440,7 +453,7 @@ function compareResults
     compareDataAsXML
   elif [ "XP" = "$outputFormat" ] ; then
     compareUSRAsXML
-    extractDataAfterUSR
+    extractDataAfterRFH2
     diff -u $er.data $ar.data | tee -a $logFile
   elif [ "PX" = "$outputFormat" ] ; then
     compareUSRAsPlain
