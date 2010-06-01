@@ -104,7 +104,7 @@ function validateConfigFile
 
   queueManager=${queueManager:-$WMQUT_QUEUE_MANAGER}
   if [ -z "$queueManager" ] ; then
-    logMsg Missing config variable: queueManager
+    logMsg Error: Missing config variable for the queueManager
     logMsg Specify either variable itself in $testConfig
     logMsg or WMQUT_QUEUE_MANAGER environment variable
     exit 2
@@ -113,7 +113,7 @@ function validateConfigFile
 
   broker=${broker:-$WMQUT_BROKER}
   if [ -z "$broker" ] ; then
-    logMsg Missing config variable: broker
+    logMsg Error: Missing config variable for the broker
     logMsg Specify either variable itself in $testConfig
     logMsg or WMQUT_BROKER environment variable
     exit 2
@@ -121,14 +121,14 @@ function validateConfigFile
   logMsg Broker: $queueManager
 
   if [ -z "$inputQueue" ] ; then
-    logMsg Missing config variable: inputQueue
+    logMsg Error: Missing config variable for the inputQueue
     exit 2
   fi
 
   # Consequtive description 1 .. N
   for ((t=1; t <= ${#testDescription[@]} ; t++)) ; do
     if [ -z "${testDescription[$t]}" ] ; then
-      logMsg Missing description for the test $t
+      logMsg Error: Missing description for the test $t
       exit 2
     fi
   done
@@ -148,7 +148,7 @@ function checkFilesystem
   dirs="ActualResults ExpectedResults Data UserTrace"
   for d in $dirs; do
     if [ ! -d $d ] ; then
-      logMsg Missing directory: $d
+      logMsg Error: Missing directory $d
       exit 3
     fi
   done
@@ -160,7 +160,7 @@ function checkFilesystem
 function checkEnvironment
 {
   if [ -z "$MQSIPROFILE" ] ; then
-    logMsg The environment variable MQSIPROFILE is not specified
+    logMsg Error: The environment variable MQSIPROFILE is not specified
     exit 2
   fi
 }
@@ -236,7 +236,7 @@ EOF
 #
 function enableTrace
 {
-  runMqsi mqsichangetrace $broker -u -e $executionGroup -l $brokerTraceLevel -r -c 50000
+  runMqsi mqsichangetrace $broker -u -e $executionGroup -l $brokerTraceLevel -r -c 100000
 }
 
 #
@@ -365,9 +365,10 @@ function processXml
   processedXml=$xml.xml
   xmllint --format $xml > $processedXml
   for e in $ignoreXmlElements ; do
-    mv $processedXml $xml
-    grep -v "<$e>" $xml > $processedXml
+    mv $processedXml $xml.tmp
+    grep -v "<$e>" $xml.tmp > $processedXml
   done
+  rm -f $xml.tmp
 }
 
 #
@@ -442,6 +443,12 @@ function compareResults
 {
   ar=ActualResults/AR$formattedResultNo.msg
   er=ExpectedResults/ER$formattedResultNo.msg
+
+  if [ ! -f $er ] ; then
+    logMsg Error: $er does not exist
+    return
+  fi
+
   outputFormat=`echo ${testOutputFormat[$testNo]} | cut -d " " -f $localResultNo`
 
   if [ "X" = "$outputFormat" ] ; then
