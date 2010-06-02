@@ -418,6 +418,9 @@ function extractDataAfterRFH2
   if grep -q "</jms>" $ar ; then
     tag=jms
   fi
+  if grep -q "</usr>" $ar ; then
+    tag=usr
+  fi
   logMsg Last RFH2 MQ element: $tag
   head -1 $ar | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $ar.data
   head -1 $er | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $er.data
