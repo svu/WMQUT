@@ -406,24 +406,37 @@ function compareUSRAsXML
 }
 
 #
-# Extract data after USR folder ($ar and $er)
+# Extract data after USR folder into .data file
+# Considers jms, usr, mcd folders
+# Parameter: $1 - the filename
 # Assumption: the entire usr folder is within 1st line of the message
 #
 function extractDataAfterRFH2
 {
-  tag=usr
-  if grep -q "</mcd>" $ar ; then
-    tag=mcd
-  fi
-  if grep -q "</jms>" $ar ; then
-    tag=jms
-  fi
-  if grep -q "</usr>" $ar ; then
-    tag=usr
-  fi
-  logMsg Last RFH2 MQ element: $tag
-  head -1 $ar | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $ar.data
-  head -1 $er | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > $er.data
+  msgFile="$1"
+  rm -f .res.after.*
+  for tag in 'jms' 'mcd' 'usr' ; do
+    if grep -q "</$tag>" $msgFile ; then
+      head -1 $msgFile | awk -v tag=$tag '{ split($0, a, sprintf("<\\/%s>[[:blank:]]*", tag)); print a[2]; }' > .res.after.$tag
+    fi
+  done
+  smallest=`ls -S .res.after.* | tail -1`
+  #logMsg Last tag in RFH2 folder: `echo $smallest | sed 's/.res.after.//'`
+  mv "$smallest" .data
+  rm -f .res.after.*
+}
+
+#
+# Extract data after USR folder ($ar and $er)
+# Assumption: the entire usr folder is within 1st line of the message
+#
+function extractARERAfterRFH2
+{
+  extractDataAfterRFH2 $ar
+  mv .data $ar.data
+  extractDataAfterRFH2 $er
+  mv .data $er.data
+
   tail --lines=+2 $ar >> $ar.data
   tail --lines=+2 $er >> $er.data
 }
@@ -433,7 +446,7 @@ function extractDataAfterRFH2
 #
 function compareDataAsXML
 {
-    extractDataAfterRFH2
+    extractARERAfterRFH2
     processXml $ar.data
     processXml $er.data
     diff -u $er.data.xml $ar.data.xml | tee -a $logFile
@@ -463,7 +476,7 @@ function compareResults
     compareDataAsXML
   elif [ "XP" = "$outputFormat" ] ; then
     compareUSRAsXML
-    extractDataAfterRFH2
+    extractARERAfterRFH2
     diff -u $er.data $ar.data | tee -a $logFile
   elif [ "PX" = "$outputFormat" ] ; then
     compareUSRAsPlain
@@ -564,6 +577,16 @@ function mainLoop
   done
 }
 
+function cleanUp
+{
+  rm -f ActualResults/*
+  rm -f ExpectedResults/*.data
+  rm -f ExpectedResults/*.usr
+  rm -f ExpectedResults/*.xml
+  rm -f UserTrace/*
+  rm -f $logFile
+}
+
 #
 # Global entry point
 #
@@ -586,6 +609,11 @@ checkEnvironment
 checkFilesystem
 
 logMsg Component: $componentName
+
+if [ "$1" == "-c" ] ; then
+  cleanUp
+  exit 0
+fi
 
 findTestsToRun $*
 
