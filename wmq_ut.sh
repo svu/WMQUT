@@ -36,6 +36,7 @@
 #     testTimeout (optional) - the time to wait after sending the message, default 10
 #     brokerTraceLevel (optional) - the trace level, default 'normal'
 #     oracleDb (optional) - the Oracle connection, user/password@db
+#     db2Db (optional) - the DB2 connection
 #     ignoreXmlElements (optional) - the XML elements to ignore (date/time/machine id/...)
 #
 #   Per-test:
@@ -57,6 +58,11 @@
 #     sqlBeforeTest_oracle (optional) - the SQL script (single line)
 #     sqlFileAfterTest_oracle (optional) - the file name of the SQL script
 #     sqlAfterTest_oracle (optional) - the SQL script (single line)
+#
+#     sqlFileBeforeTest_db2 (optional) - the file name of the SQL script
+#     sqlBeforeTest_db2 (optional) - the SQL script (single line)
+#     sqlFileAfterTest_db2 (optional) - the file name of the SQL script
+#     sqlAfterTest_db2 (optional) - the SQL script (single line)
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
@@ -65,6 +71,7 @@
 #   WMQUT_CONFIG (optional) - the configuration file name, default wmq_ut.conf
 #   WMQUT_LOG (optional) - the log file name, default wmq_ut.log
 #   WMQUT_ORACLE_DB (optional) - the Oracle connection, user/password@db
+#   WMQUT_DB2_DB (optional) - the DB2 connection
 #   WMQUT_TEST_TIMEOUT (optional) - the time to wait after sending the message
 #   WMQUT_TRACE_LEVEL (optional) - the trace level
 #
@@ -78,6 +85,7 @@
 #   mqput2, mqcapone should be in PATH
 #   sqlplus should be in PATH, if Oracle is used
 #   xmllint should be in PATH, if XML messages are processed
+#   db2 should be in PATH, if DB2 is used
 #
 
 # set -x
@@ -280,6 +288,41 @@ function runOracle()
   fi
 }
 
+function runDB2()
+{
+  stmt="$1"
+  file="$2"
+
+  db2Db=${db2Db:-$WMQUT_DB2_DB}
+
+  if [ -z "$db2Db" ] ; then
+    logMsg Missing config variable: db2Db
+    logMsg Specify either variable itself in $testConfig
+    logMsg or WMQUT_DB2_DB environment variable
+    exit 2
+  fi
+
+  cmd=./tmp.cmd
+  if [ -n "$stmt" ] ; then
+    if [ -n "$COMSPEC" ] ; then
+      echo @echo off > $cmd
+      echo db2 -z$logFile connect to $db2Db >> $cmd
+      echo db2 -z$logFile $stmt >> $cmd
+      db2cmd /i /c /w $cmd
+    fi
+  fi
+
+  if [ -n "$file" ] ; then
+    if [ -n "$COMSPEC" ] ; then
+      echo @echo off > $cmd
+      echo db2 -z$logFile connect to $db2Db >> $cmd
+      echo db2 -z$logFile -tvf $file >> $cmd
+      db2cmd /i /c /w $cmd
+    fi
+  fi
+  rm -f $cmd
+}
+
 #
 # Prepare the DB
 # Parameters: $1 - test number
@@ -288,6 +331,7 @@ function setupDb
 {
   logMsg "Setting up DB"
   runOracle "${sqlBeforeTest_oracle[$testNo]}" "${sqlFileBeforeTest_oracle[$testNo]}"
+  runDB2 "${sqlBeforeTest_db2[$testNo]}" "${sqlFileBeforeTest_db2[$testNo]}"
 }
 
 #
@@ -298,6 +342,7 @@ function cleanupDb
 {
   logMsg "Cleaning up DB"
   runOracle "${sqlAfterTest_oracle[$testNo]}" "${sqlFileAfterTest_oracle[$testNo]}"
+  runDB2 "${sqlAfterTest_db2[$testNo]}" "${sqlFileAfterTest_db2[$testNo]}"
 }
 
 #
@@ -514,7 +559,7 @@ function analizeTest
 
   localResultNo=1
   for q in ${testOutputQueues[$testNo]} ; do
-    logMsg Checking output queue $q
+    logMsg "Checking output queue $q (message seq no $formattedResultNo)"
     if ! getWMQMessage $q ; then
       logMsg Expected a message from $q, no message available
     else
