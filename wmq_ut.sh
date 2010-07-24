@@ -624,11 +624,11 @@ function mainLoop
 
 function cleanUp
 {
-  rm -f ActualResults/*
+  rm -f ActualResults/*msg*
   rm -f ExpectedResults/*.data
   rm -f ExpectedResults/*.usr
   rm -f ExpectedResults/*.xml
-  rm -f UserTrace/*
+  rm -f UserTrace/*log
   rm -f $logFile
 }
 
