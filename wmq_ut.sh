@@ -422,8 +422,12 @@ function processXml
 #
 function extractUSR
 {
-  head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $ar.usr
-  head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' > $er.usr
+  echo '<usr>' > $ar.usr
+  echo '<usr>' > $er.usr
+  head -1 $ar | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' >> $ar.usr
+  head -1 $er | awk '{ split($0, a, "<\\/?usr>"); print a[2]; }' >> $er.usr
+  echo '</usr>' >> $ar.usr
+  echo '</usr>' >> $er.usr
 }
 
 #
