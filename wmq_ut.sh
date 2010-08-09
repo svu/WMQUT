@@ -21,7 +21,14 @@
 #
 # Description: Run WMQMB unit tests
 #
-# Parameters: subset of tests. If empty, all tests are being run
+# Parameters:
+#    - subset of tests. If empty, all tests are being run
+#    - special command
+#
+# Supported command-line commands:
+#   -h/-help - provide short help
+#   -c/-clean - remove all temporary files (actual results, log, etc)
+#   -i/-cvsignore - create .cvsignore files for not committing temporary files
 #
 # Configuration: wmq_ut.conf (in the current directory) or $UT_CONFIG 
 #
@@ -628,6 +635,7 @@ function mainLoop
 
 function cleanUp
 {
+  echo Cleaning temporary files
   rm -f ActualResults/*msg*
   rm -f ExpectedResults/*.data
   rm -f ExpectedResults/*.usr
@@ -636,9 +644,43 @@ function cleanUp
   rm -f $logFile
 }
 
+function prepareCvsIgnore
+{
+  echo Preparing CVS ignore files
+  echo wmq_ut.log > .cvsignore
+  echo '*.*' > ActualResults/.cvsignore
+  echo '*.msg.data' > ExpectedResults/.cvsignore
+  echo '*.msg.data.xml' >> ExpectedResults/.cvsignore
+  echo '*.msg.xml' >> ExpectedResults/.cvsignore
+  echo '*.msg.usr' >> ExpectedResults/.cvsignore
+  echo '*.msg.usr.xml' >> ExpectedResults/.cvsignore
+  echo '*.log' > UserTrace/.cvsignore
+}
+
+function printUsage
+{
+  echo "USAGE:"
+  echo "    `basename $0` {t1 t2 t3 ...}"
+  echo "  OR:"
+  echo "    `basename $0` {command}"
+  echo " "
+  echo "WHERE:"
+  echo "  {t1 t2 t3 ...} - individual test numbers (if omitted, all tests are to be run)"
+  echo "  {command} - one of the supported commands:"
+  echo "    -h/-help - show this message"
+  echo "    -c/-clean - clean the test directory structure of all the temporary files"
+  echo "    -i/-cvsignore - create all necessary .cvsignore files (for not storing logs and actual results)"
+}
+
 #
-# Global entry point
+# Global entry point "main"
 #
+
+if [ "$1" = "-h" -o "$1" = "-help" ] ; then
+  printUsage
+  exit 0
+fi
+
 
 if [ -f $testConfig ] ; then
   . $testConfig
@@ -659,8 +701,13 @@ checkFilesystem
 
 logMsg Component: $componentName
 
-if [ "$1" == "-c" ] ; then
+if [ "$1" = "-c" -o "$1" = "-clean" ] ; then
   cleanUp
+  exit 0
+fi
+
+if [ "$1" = "-i" -o "$1" = "-cvsignore" ] ; then
+  prepareCvsIgnore
   exit 0
 fi
 
