@@ -83,10 +83,10 @@
 #   WMQUT_TRACE_LEVEL (optional) - the trace level
 #
 # Directory structure:
-#   ActualResults
-#   Data
-#   ExpectedResults
-#   UserTrace
+#   ActualResults: the results will be created with names AR01.msg, AR02.msg, ...
+#   Data: the test files should be named TD01.msg, TD02.msg, ...
+#   ExpectedResults: the results should be named ER01.msg, ER02.msg, ...
+#   UserTrace: the log files will have names UT01.log, UT02.log, ...
 #
 # Dependencies:
 #   mqput2, mqcapone should be in PATH

@@ -3,4 +3,4 @@
 3. Creating screencast-tutorial
 4. Introduce "tags" into Expected Results: current date, msg id
 5. Start/stop individual flows
-6. Group tests (scalability)
+6. Scalability: grouping, support for >100 tests/results
