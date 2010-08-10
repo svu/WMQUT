@@ -648,7 +648,7 @@ function prepareCvsIgnore
 {
   echo Preparing CVS ignore files
   echo wmq_ut.log > .cvsignore
-  echo '*.*' > ActualResults/.cvsignore
+  echo '*.msg*' > ActualResults/.cvsignore
   echo '*.msg.data' > ExpectedResults/.cvsignore
   echo '*.msg.data.xml' >> ExpectedResults/.cvsignore
   echo '*.msg.xml' >> ExpectedResults/.cvsignore
