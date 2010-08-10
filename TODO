@@ -1,2 +1,4 @@
-1. DB2 support
-3. EBCDIC
+1. Improve DB2 support
+2. Support data EBCDIC format (readable diff)
+3. Creating screencast-tutorial
+4. Introduce "tags" into Expected Results: current date, msg id

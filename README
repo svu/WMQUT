@@ -1,0 +1,12 @@
+The wmq_ut.sh script is a Unit Testing helper for WMQMB projects.
+
+Major features:
+
+- One input queue, multiple output queues per test
+- Comparing expected and actual results
+- Saving WMQMB trace, either normal or debug level
+- Processing of message body and MQRFH2 header, plain and XML
+- Running SQL commands before and after the test
+- Support for running in Linux and Windows (using Cygwin)
+
+For usage details, see the comments in the script
