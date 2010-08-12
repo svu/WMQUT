@@ -277,6 +277,11 @@ function runOracle()
   stmt="$1"
   file="$2"
 
+  # Nothing to do
+  if [ -z "$stmt" -a -z "$file" ] ; then
+    return
+  fi
+
   oracleDb=${oracleDb:-$WMQUT_ORACLE_DB}
 
   if [ -z "$oracleDb" ] ; then
@@ -287,7 +292,7 @@ function runOracle()
   fi
 
   if [ -n "$stmt" ] ; then
-    echo $stmt | sqlplus -S $oracleDb >> $logFile
+    echo "$stmt" | sqlplus -S $oracleDb >> $logFile
   fi
 
   if [ -n "$file" ] ; then
@@ -300,6 +305,11 @@ function runDB2()
   stmt="$1"
   file="$2"
 
+  # Nothing to do
+  if [ -z "$stmt" -a -z "$file" ] ; then
+    return
+  fi
+
   db2Db=${db2Db:-$WMQUT_DB2_DB}
 
   if [ -z "$db2Db" ] ; then
@@ -309,13 +319,22 @@ function runDB2()
     exit 2
   fi
 
+  if [ -z "$DB2CLP" ] ; then
+    logMsg 'The tests using DB2 have to be run in valid DB2 command line environment'
+    logMsg '(in Microsoft Windows, use DB2 Command Window)'
+    exit 2
+  fi
+
   cmd=./tmp.cmd
   if [ -n "$stmt" ] ; then
     if [ -n "$COMSPEC" ] ; then
       echo @echo off > $cmd
       echo db2 -z$logFile connect to $db2Db >> $cmd
-      echo db2 -z$logFile $stmt >> $cmd
-      db2cmd /i /c /w $cmd
+      echo db2 -z$logFile "$stmt" >> $cmd
+      $cmd
+    else
+      db2 -z$logFile connect to $db2Db
+      db2 -z$logFile "$stmt"
     fi
   fi
 
@@ -324,7 +343,10 @@ function runDB2()
       echo @echo off > $cmd
       echo db2 -z$logFile connect to $db2Db >> $cmd
       echo db2 -z$logFile -tvf $file >> $cmd
-      db2cmd /i /c /w $cmd
+      $cmd
+    else
+      db2 -z$logFile connect to $db2Db
+      db2 -z$logFile -tvf $file
     fi
   fi
   rm -f $cmd
