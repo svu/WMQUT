@@ -1,6 +1,5 @@
-1. Improve DB2 support
-2. Support data EBCDIC format (readable diff)
-3. Creating screencast-tutorial
-4. Introduce "tags" into Expected Results: current date, msg id
-5. Start/stop individual flows
-6. Scalability: grouping, support for >100 tests/results
+1. Support data EBCDIC format (readable diff)
+2. Creating screencast-tutorial
+3. Introduce "tags" into Expected Results: current date, msg id
+4. Start/stop individual flows
+5. Scalability: grouping, support for >100 tests/results
