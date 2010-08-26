@@ -45,6 +45,9 @@
 #     oracleDb (optional) - the Oracle connection, user/password@db
 #     db2Db (optional) - the DB2 connection
 #     ignoreXmlElements (optional) - the XML elements to ignore (date/time/machine id/...)
+#     allOutputQueues (optional) - all output queues (for cleaning up and checking)
+#     cleanupQueues (optional) - all queues to cleanup before running the test
+#                                If not specified, allOutputQueues is used
 #
 #   Per-test:
 #     testDescription[i] (mandatory) - the description of the test
@@ -54,6 +57,7 @@
 #                                      can be listed several times if several
 #                                      messages are expected
 #     testEmptyQueues[i] (optional) - the list of empty queues.
+#                                     If not specified, allOutputQueues are used
 #     testOutputFormat[i] (optional) - the list of formats (for comparison).
 #                                      Supported values:
 #                                      'P' - non-structured
@@ -153,6 +157,8 @@ function validateConfigFile
   logMsg Trace level: $brokerTraceLevel
   testTimeout=${testTimeout:-${WMQUT_TEST_TIMEOUT:-10}}
   logMsg Test timeout: $testTimeout seconds
+
+  cleanupQueues=${cleanupQueues:-$allOutputQueues}
 }
 
 #
@@ -603,7 +609,8 @@ function analizeTest
     localResultNo=$(( $localResultNo + 1 ))
   done
 
-  for q in ${testEmptyQueues[$testNo]} ; do
+  emptyQueuesToCheck="${testEmptyQueues[$testNo]:-$allOutputQueues}"
+  for q in $emptyQueuesToCheck ; do
     logMsg Checking queue $q to be empty
     if getWMQMessage $q ; then
       logMsg Expected queue $q to be empty - but at least one message is available
