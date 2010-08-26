@@ -74,6 +74,9 @@
 #     sqlBeforeTest_db2 (optional) - the SQL script (single line)
 #     sqlFileAfterTest_db2 (optional) - the file name of the SQL script
 #     sqlAfterTest_db2 (optional) - the SQL script (single line)
+#
+#     mqscBeforeTest (optional) - run MQSC command before test
+#     mqscAfterTest (optional) - run MQSC command after test
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
@@ -360,7 +363,6 @@ function runDB2()
 
 #
 # Prepare the DB
-# Parameters: $1 - test number
 #
 function setupDb
 {
@@ -371,7 +373,6 @@ function setupDb
 
 #
 # Cleanup the DB
-# Parameters: $1 - test number
 #
 function cleanupDb
 {
@@ -381,8 +382,29 @@ function cleanupDb
 }
 
 #
+# Prepare WMQ
+#
+function setupMq
+{
+  if [ -n "${mqscBeforeTest[$testNo]}" ] ; then
+    logMsg "Setting up WMQ"
+    echo ${mqscBeforeTest[$testNo]} | runmqsc $queueManager >> $logFile
+  fi
+}
+
+#
+# Cleanup the WMQ
+#
+function cleanupMq
+{
+  if [ -n "${mqscAfterTest[$testNo]}" ] ; then
+    logMsg "Cleaning up WMQ"
+    echo ${mqscAfterTest[$testNo]} | runmqsc $queueManager >> $logFile
+  fi
+}
+
+#
 # Prepare the test
-# Parameters: $1 - test number
 #
 function setupTest
 {
@@ -397,12 +419,12 @@ function setupTest
   fi
 
   setupDb
+  setupMq
   enableTrace
 }
 
 #
 # Execute the test
-# Parameters: $1 - test number
 #
 function executeTest
 {
@@ -626,6 +648,7 @@ function analizeTest
 function cleanupTest
 {
   cleanupDb
+  cleanupMq
 }
 
 #
