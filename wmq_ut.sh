@@ -38,7 +38,8 @@
 #     componentName (mandatory) - the name of the component being tested
 #     queueManager (mandatory) - the queue manager
 #     broker (mandatory) - the broker name
-#     inputQueue (mandatory) - the input queue name
+#     inputQueue (optional) - the input queue name
+#     inputDir (optional) - the input directory name
 #     executionGroup (optional) - the broker execution group, default 'default'
 #     testTimeout (optional) - the time to wait after sending the message, default 10
 #     brokerTraceLevel (optional) - the trace level, default 'normal'
@@ -49,10 +50,12 @@
 #     cleanupQueues (optional) - all queues to cleanup before running the test
 #                                If not specified, allOutputQueues is used
 #
+#     either inputQueue or inputDir have to be provided
 #   Per-test:
 #     testDescription[i] (mandatory) - the description of the test
 #     testInputQueue[i] (mandatory) - the input queue 
 #                                     (if different from the global)
+#     testInputFile[i] (optional) - the destination filename of the file (for file input)
 #     testOutputQueues[i] (optional) - the list of output queues. One queue 
 #                                      can be listed several times if several
 #                                      messages are expected
@@ -142,8 +145,8 @@ function validateConfigFile
   fi
   logMsg Broker: $queueManager
 
-  if [ -z "$inputQueue" ] ; then
-    logMsg Error: Missing config variable for the inputQueue
+  if [ -z "$inputQueue" -a -z "$inputDir" ] ; then
+    logMsg Error: Missing config variable for the inputQueue/inputDir
     exit 2
   fi
 
@@ -439,18 +442,29 @@ function executeTest
   tq=${testInputQueue[$testNo]}
   tq=${tq:-$gq}
 
-cat > $pf << EOF
+  srcDataFile="Data/TD$formattedTestNo.msg"
+
+  # Send to to the queue
+  if [ -n "$tq" ] ; then
+
+    cat > $pf << EOF
 [header]
 qname=$tq
 qmgr=$queueManager
 msgcount=1
 rfh=A
 [filelist]
-Data/TD$formattedTestNo.msg
+$srcDataFile
 EOF
-  logMsg Sending message to $tq ...
-  mqput2 -f $pf >> $logFile
-  rm -f $pf
+    logMsg Sending message to $tq ...
+    mqput2 -f $pf >> $logFile
+    rm -f $pf
+  else 
+    # Or put to the filesystem
+    dstFile=${testInputFile[$testNo]}
+    logMsg Putting message to "$inputDir/$dstFile" ...
+    cp $srcDataFile "$inputDir/$dstFile"
+  fi
 
   logMsg Waiting ...
   sleep $testTimeout
