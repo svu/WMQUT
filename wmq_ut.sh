@@ -40,6 +40,7 @@
 #     broker (mandatory) - the broker name
 #     inputQueue (optional) - the input queue name
 #     inputDir (optional) - the input directory name
+#     outputDir (optional) - the output directory name
 #     executionGroup (optional) - the broker execution group, default 'default'
 #     testTimeout (optional) - the time to wait after sending the message, default 10
 #     brokerTraceLevel (optional) - the trace level, default 'normal'
@@ -53,13 +54,16 @@
 #     either inputQueue or inputDir have to be provided
 #   Per-test:
 #     testDescription[i] (mandatory) - the description of the test
-#     testInputQueue[i] (mandatory) - the input queue 
-#                                     (if different from the global)
+#     testInputQueue[i] (mandatory) - the input queue (if different from the global)
 #     testInputFile[i] (optional) - the destination filename of the file (for file input)
-#     testOutputQueues[i] (optional) - the list of output queues. One queue 
-#                                      can be listed several times if several
-#                                      messages are expected
-#     testEmptyQueues[i] (optional) - the list of empty queues.
+#     testOutputPreprocessor[i] (optional) - the command line for preprocessing of the results.
+#                                            It is applied to both actual and expected results,
+#                                            before comparison
+#     testOutputQueues[i] (optional) - the list of output queues.
+#                                      One queue can be listed several times
+#                                      if several messages are expected
+#     testOutputFiles[i] (optional) - the list of output files
+#     testEmptyQueues[i] (optional) - the list of empty queues
 #                                     If not specified, allOutputQueues are used
 #     testOutputFormat[i] (optional) - the list of formats (for comparison).
 #                                      Supported values:
@@ -83,14 +87,15 @@
 #   
 # Environment:
 #   MQSIPROFILE (mandatory) - path to MQSI profile (.cmd or .sh)
+#   WMQUT_EXECUTION_GROUP (optional) - the execution group to use, default 'default'
 #   WMQUT_QUEUE_MANAGER (optional) - the queue manager
 #   WMQUT_BROKER (optional) - the broker name
-#   WMQUT_CONFIG (optional) - the configuration file name, default wmq_ut.conf
-#   WMQUT_LOG (optional) - the log file name, default wmq_ut.log
+#   WMQUT_CONFIG (optional) - the configuration file name, default 'wmq_ut.conf'
+#   WMQUT_LOG (optional) - the log file name, default 'wmq_ut.log'
 #   WMQUT_ORACLE_DB (optional) - the Oracle connection, user/password@db
 #   WMQUT_DB2_DB (optional) - the DB2 connection
-#   WMQUT_TEST_TIMEOUT (optional) - the time to wait after sending the message
-#   WMQUT_TRACE_LEVEL (optional) - the trace level
+#   WMQUT_TEST_TIMEOUT (optional) - the time to wait after sending the message, default 10
+#   WMQUT_TRACE_LEVEL (optional) - the trace level, default 'normal'
 #
 # Directory structure:
 #   ActualResults: the results will be created with names AR01.msg, AR02.msg, ...
@@ -158,7 +163,7 @@ function validateConfigFile
     fi
   done
 
-  executionGroup=${executionGroup:-default}
+  executionGroup=${executionGroup:-${WMQUT_EXECUTION_GROUP:-default}}
   brokerTraceLevel=${brokerTraceLevel:-${WMQUT_TRACE_LEVEL:-normal}}
   logMsg Trace level: $brokerTraceLevel
   testTimeout=${testTimeout:-${WMQUT_TEST_TIMEOUT:-10}}
@@ -235,6 +240,20 @@ EOF
     return 1
   fi
   return 0
+}
+
+function getFileMessage
+{
+  filename="$outputDir/$1"
+
+  if [ -f "$filename" ] ; then
+    if cp $filename tmp.msg ; then
+      return 0
+    else
+      return 2
+    fi 
+  fi
+  return 1
 }
 
 #
@@ -479,7 +498,7 @@ function processXml
 {
   xml=$1
   processedXml=$xml.xml
-  xmllint --format $xml > $processedXml
+  xmllint --nsclean --format $xml > $processedXml
   for e in $ignoreXmlElements ; do
     mv $processedXml $xml.tmp
     grep -v "<$e>" $xml.tmp > $processedXml
@@ -585,6 +604,14 @@ function compareResults
     return
   fi
 
+  opp=${testOutputPreprocessor[$testNo]};
+  if [ -n "$opp" ] ; then
+    $opp < $ar > $ar.pp
+    $opp < $er > $er.pp
+    ar=$ar.pp
+    er=$er.pp
+  fi
+
   outputFormat=`echo ${testOutputFormat[$testNo]} | cut -d " " -f $localResultNo`
 
   if [ "X" = "$outputFormat" ] ; then
@@ -645,6 +672,18 @@ function analizeTest
     localResultNo=$(( $localResultNo + 1 ))
   done
 
+  for f in ${testOutputFiles[$testNo]} ; do
+    logMsg "Checking output file $f (message seq no $formattedResultNo)"
+    if ! getFileMessage $f ; then
+      logMsg Expected a file $f, no file available
+    else
+      mv tmp.msg ActualResults/AR$formattedResultNo.msg
+      compareResults $formattedResultNo
+    fi
+    incResultNo
+    localResultNo=$(( $localResultNo + 1 ))
+  done
+
   emptyQueuesToCheck="${testEmptyQueues[$testNo]:-$allOutputQueues}"
   for q in $emptyQueuesToCheck ; do
     logMsg Checking queue $q to be empty
@@ -682,9 +721,8 @@ function mainLoop
       fi
     done
 
-    # If the test is to be run - do it, 
-    # otherwise just increase result counter
     if [ 1 = $doRun ] ; then
+      # If the test is to be run - do it, 
       logMsg ----- Test $testNo: ${testDescription[$testNo]} -----
       formattedTestNo="`printf $NO_FORMAT $testNo`"
       setupTest
@@ -692,7 +730,11 @@ function mainLoop
       analizeTest
       cleanupTest
     else
+      # otherwise just increase result counter
       for q in ${testOutputQueues[$testNo]} ; do
+        incResultNo
+      done
+      for q in ${testOutputFiles[$testNo]} ; do
         incResultNo
       done
     fi
@@ -715,11 +757,12 @@ function prepareCvsIgnore
   echo Preparing CVS ignore files
   echo wmq_ut.log > .cvsignore
   echo '*.msg*' > ActualResults/.cvsignore
-  echo '*.msg.data' > ExpectedResults/.cvsignore
-  echo '*.msg.data.xml' >> ExpectedResults/.cvsignore
-  echo '*.msg.xml' >> ExpectedResults/.cvsignore
-  echo '*.msg.usr' >> ExpectedResults/.cvsignore
-  echo '*.msg.usr.xml' >> ExpectedResults/.cvsignore
+
+  echo '*.data' > ExpectedResults/.cvsignore
+  echo '*.pp' >> ExpectedResults/.cvsignore
+  echo '*.usr' >> ExpectedResults/.cvsignore
+  echo '*.xml' >> ExpectedResults/.cvsignore
+
   echo '*.log' > UserTrace/.cvsignore
 }
 
