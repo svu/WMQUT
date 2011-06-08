@@ -746,6 +746,7 @@ function cleanUp
   echo Cleaning temporary files
   rm -f ActualResults/*msg*
   rm -f ExpectedResults/*.data
+  rm -f ExpectedResults/*.pp
   rm -f ExpectedResults/*.usr
   rm -f ExpectedResults/*.xml
   rm -f UserTrace/*log
